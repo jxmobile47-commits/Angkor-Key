@@ -30,13 +30,15 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Build & package
         run: npm run ${{ matrix.script }}
         env:
           # Skip code signing in CI (unsigned build). Add certs as secrets to sign.
           CSC_IDENTITY_AUTO_DISCOVERY: false
+          # Never auto-publish to a provider.
+          EP_DRAFT: false
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
