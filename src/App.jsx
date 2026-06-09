@@ -42,6 +42,7 @@ export default function App() {
   const [importing, setImporting] = useState(false)
   const [dropping, setDropping] = useState(false)
   const [snap, setSnap] = useState(true)
+  const [beatgrid, setBeatgrid] = useState(false)
   const raf = useRef(null)
   const audioRef = useRef(null)
   const fileRef = useRef(null)
@@ -329,6 +330,8 @@ export default function App() {
             onRemoveCue={removeCue}
             snap={snap}
             onToggleSnap={() => setSnap((s) => !s)}
+            beatgrid={beatgrid}
+            onToggleBeatgrid={() => setBeatgrid((b) => !b)}
           />
 
           {/* Library panel */}

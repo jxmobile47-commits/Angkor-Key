@@ -1,8 +1,23 @@
 import React, { useRef } from 'react'
 
-export default function Waveform({ track, progress, onSeek, onRemoveCue }) {
+export default function Waveform({ track, progress, onSeek, onRemoveCue, showBeatgrid }) {
   const ref = useRef(null)
   const bars = track?.waveform || []
+
+  // Compute beatgrid line positions (as fractions of the track).
+  let beats = []
+  if (showBeatgrid && track?.tempo && track?.duration) {
+    const beatSec = 60 / track.tempo
+    const first = track.firstBeat || 0
+    const total = Math.floor((track.duration - first) / beatSec)
+    const cap = Math.min(total, 1024)
+    for (let i = 0; i <= cap; i++) {
+      const time = first + i * beatSec
+      const pos = time / track.duration
+      if (pos > 1) break
+      beats.push({ pos, downbeat: i % 4 === 0 })
+    }
+  }
 
   const handleClick = (e) => {
     const rect = ref.current.getBoundingClientRect()
@@ -43,6 +58,18 @@ export default function Waveform({ track, progress, onSeek, onRemoveCue }) {
         onClick={handleClick}
         className="relative flex items-center gap-[2px] h-[110px] pt-7 pb-5 cursor-pointer select-none"
       >
+        {/* Beatgrid */}
+        {beats.map((b, i) => (
+          <div
+            key={`beat-${i}`}
+            className="absolute top-6 bottom-5 pointer-events-none"
+            style={{
+              left: `${b.pos * 100}%`,
+              width: b.downbeat ? '1.5px' : '1px',
+              background: b.downbeat ? 'rgba(245,158,11,0.85)' : 'rgba(245,158,11,0.3)',
+            }}
+          />
+        ))}
         {bars.map((v, i) => {
           const played = i / bars.length < progress
           return (

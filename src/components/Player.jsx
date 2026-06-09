@@ -1,6 +1,6 @@
 import React from 'react'
 import {
-  Play, Pause, SkipBack, SkipForward, Volume2, Plus, Crosshair, Piano, Info,
+  Play, Pause, SkipBack, SkipForward, Volume2, Plus, Crosshair, Piano, Info, Grid3x3,
 } from 'lucide-react'
 import Waveform from './Waveform'
 import { keyColor } from '../data/camelot'
@@ -22,7 +22,7 @@ function Stat({ label, children }) {
 
 export default function Player({
   track, playing, onTogglePlay, progress, onSeek, onPrev, onNext,
-  onAddCue, onRemoveCue, snap, onToggleSnap,
+  onAddCue, onRemoveCue, snap, onToggleSnap, beatgrid, onToggleBeatgrid,
 }) {
   if (!track) return null
   const elapsed = progress * track.duration
@@ -48,7 +48,7 @@ export default function Player({
 
         {/* Waveform */}
         <div className="flex-1 min-w-0">
-          <Waveform track={track} progress={progress} onSeek={onSeek} onRemoveCue={onRemoveCue} />
+          <Waveform track={track} progress={progress} onSeek={onSeek} onRemoveCue={onRemoveCue} showBeatgrid={beatgrid} />
         </div>
       </div>
 
@@ -88,6 +88,12 @@ export default function Player({
             className={`flex items-center gap-1 text-[12px] font-semibold transition-colors ${snap ? 'text-brand' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}
           >
             <Crosshair size={14} /> Snap cue{snap ? ' · on' : ' · off'}
+          </button>
+          <button
+            onClick={onToggleBeatgrid}
+            className={`flex items-center gap-1 text-[12px] font-semibold transition-colors ${beatgrid ? 'text-amber-500' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}
+          >
+            <Grid3x3 size={14} /> Beatgrid{beatgrid ? ' · on' : ' · off'}
           </button>
         </div>
         <div className="flex items-center gap-2">

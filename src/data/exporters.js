@@ -41,8 +41,9 @@ export function buildRekordboxXML(tracks) {
       `Genre="${esc(t.genre)}" AverageBpm="${bpm}" Tonality="${esc(tonality)}" ` +
       `TotalTime="${total}" Comments="${esc(t.comment)}" Location="${loc}">`
     )
-    // One tempo anchor at the start.
-    lines.push(`      <TEMPO Inizio="0.000" Bpm="${bpm}" Metro="4/4" Battito="1"/>`)
+    // Beatgrid anchor at the first downbeat.
+    const inizio = Number(t.firstBeat || 0).toFixed(3)
+    lines.push(`      <TEMPO Inizio="${inizio}" Bpm="${bpm}" Metro="4/4" Battito="1"/>`)
     // Cue points -> memory cues (Num=-1) + hot cues (Num 0..7).
     ;(t.cues || []).forEach((cue, i) => {
       const start = ((cue.pos || 0) * (t.duration || 0)).toFixed(3)
@@ -99,12 +100,18 @@ export async function exportSeratoTags(tracks) {
   let written = 0
   const errors = []
   for (const t of withFiles) {
+    const seratoCues = (t.cues || []).slice(0, 8).map((cue, i) => ({
+      index: i,
+      name: `Cue ${i + 1}`,
+      positionMs: Math.round((cue.pos || 0) * (t.duration || 0) * 1000),
+    }))
     const res = await window.angkorKey.writeId3(t.filePath, {
       key: t.key,
       bpm: t.tempo,
       comment: `Camelot ${t.key} - Energy ${t.energy}`,
       artist: t.artist,
       title: t.title,
+      seratoCues,
     })
     if (res.ok) written++
     else errors.push(`${t.title}: ${res.error || 'failed'}`)
