@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Library, Tag, BookOpen, Settings, Search, KeyRound, Gauge, Activity,
-  Disc, RotateCcw, ChevronDown, Moon, Sun, Upload,
+  Library, Tag, Settings, Search, KeyRound, Gauge, Activity,
+  Disc, RotateCcw, ChevronDown, Moon, Sun, Upload, Headphones,
 } from 'lucide-react'
 import Sidebar from './components/Sidebar'
 import Player from './components/Player'
 import TrackTable from './components/TrackTable'
 import TagEditor from './components/TagEditor'
+import SettingsPanel from './components/Settings'
+import MixStudio from './components/MixStudio'
 import ExportMenu from './components/ExportMenu'
 import { TRACKS } from './data/tracks'
 import { compatibleKeys, harmonicMatches } from './data/camelot'
@@ -15,7 +17,7 @@ import { fileToTrack } from './data/audio'
 const TABS = [
   ['collection', 'My collection', Library],
   ['tag', 'Tag editor', Tag],
-  ['guide', 'How-to guide', BookOpen],
+  ['mix', 'DJ Mix', Headphones],
   ['settings', 'Settings', Settings],
 ]
 
@@ -318,6 +320,7 @@ export default function App() {
 
         <div className="flex-1 flex flex-col min-h-0 p-4 gap-4">
           {/* Player */}
+          {tab !== 'settings' && tab !== 'mix' && (
           <Player
             track={selected}
             playing={playing}
@@ -333,10 +336,15 @@ export default function App() {
             beatgrid={beatgrid}
             onToggleBeatgrid={() => setBeatgrid((b) => !b)}
           />
+          )}
 
           {/* Library panel */}
-          <section className="relative flex-1 min-h-0 bg-white dark:bg-[#11161f] rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 flex flex-col">
-            {tab === 'tag' ? (
+          <section className={`relative flex-1 min-h-0 rounded-2xl flex flex-col ${tab === 'mix' ? '' : 'bg-white dark:bg-[#11161f] shadow-soft border border-slate-200 dark:border-slate-800'}`}>
+            {tab === 'settings' ? (
+              <SettingsPanel />
+            ) : tab === 'mix' ? (
+              <MixStudio tracks={tracks} />
+            ) : tab === 'tag' ? (
               <TagEditor
                 tracks={tracks}
                 selectedId={selected?.id}

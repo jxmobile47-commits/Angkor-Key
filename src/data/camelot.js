@@ -55,6 +55,48 @@ export const REL_META = {
   mood: { label: 'Mood change', short: '~', color: '#a855f7' },
 }
 
+// Analyze how two tracks mix together: harmonic relationship + tempo + energy.
+// Returns { rel, label, score (0-100), color, tempoDiff, tempoPct, verdict }.
+export function mixCompatibility(a, b) {
+  if (!a?.key || !b?.key) return null
+  const ca = a.key, cb = b.key
+  const na = parseInt(ca, 10), la = ca.replace(/[0-9]/g, '')
+  const nb = parseInt(cb, 10), lb = cb.replace(/[0-9]/g, '')
+
+  let rel, label, color, keyScore
+  if (ca === cb) {
+    rel = 'perfect'; label = 'Same key — perfect match'; color = '#10b981'; keyScore = 100
+  } else if (na === nb && la !== lb) {
+    rel = 'mood'; label = 'Relative major/minor — smooth mood change'; color = '#a855f7'; keyScore = 90
+  } else if (la === lb && ((na % 12) + 1 === nb)) {
+    rel = 'boost'; label = 'Energy boost (+1)'; color = '#3b6cf6'; keyScore = 85
+  } else if (la === lb && ((nb % 12) + 1 === na)) {
+    rel = 'drop'; label = 'Energy drop (-1)'; color = '#f59e0b'; keyScore = 85
+  } else if (la === lb && Math.abs(na - nb) === 2) {
+    rel = 'energy2'; label = 'Two-step jump (+2) — bold but works'; color = '#f59e0b'; keyScore = 60
+  } else {
+    rel = 'clash'; label = 'Key clash — not harmonically compatible'; color = '#ef4444'; keyScore = 20
+  }
+
+  // Tempo proximity: closer BPM = better. Within ~6% is mixable.
+  const ta = a.tempo || 0, tb = b.tempo || 0
+  const tempoDiff = Math.abs(ta - tb)
+  const tempoPct = ta ? (tempoDiff / ta) * 100 : 0
+  let tempoScore = 100
+  if (tempoPct > 8) tempoScore = 30
+  else if (tempoPct > 6) tempoScore = 55
+  else if (tempoPct > 3) tempoScore = 80
+
+  const score = Math.round(keyScore * 0.65 + tempoScore * 0.35)
+  let verdict
+  if (score >= 85) verdict = 'Great mix'
+  else if (score >= 70) verdict = 'Good mix'
+  else if (score >= 50) verdict = 'Risky mix'
+  else verdict = 'Avoid'
+
+  return { rel, label, color, score, keyScore, tempoScore, tempoDiff, tempoPct, verdict }
+}
+
 // Smart harmonic suggestions: which keys mix well from `code`, with the reason.
 export function harmonicMatches(code) {
   if (!code) return []
