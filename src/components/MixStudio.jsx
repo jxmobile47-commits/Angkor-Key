@@ -2,11 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Play, Pause, KeyRound, Gauge, Activity, Check, X, AlertTriangle,
   SkipBack, SkipForward, Filter, Star, Sliders, Repeat, Download,
-  ArrowRightToLine, Minus, Plus, Search, Shuffle,
+  ArrowRightToLine, Minus, Plus, Search, Shuffle, Mic,
 } from 'lucide-react'
 import Waveform from './Waveform'
 import TrackTable from './TrackTable'
 import { keyColor, CAMELOT_TO_KEY, mixCompatibility } from '../data/camelot'
+import { createDeckChain } from '../data/audioEngine'
 
 const fmt = (s) => {
   if (!s && s !== 0) return '0:00'
@@ -39,9 +40,12 @@ function TrackPicker({ tracks, value, onChange, side }) {
   )
 }
 
+const EQ_BANDS = [['low', 'Low'], ['mid', 'Mid'], ['high', 'High']]
+
 function Deck({
   side, track, tracks, onPick, playing, onTogglePlay, progress, onSeek,
   shift = 0, onShift, stems, onStems, loop = 16, onLoop, onExport,
+  eq = {}, onKill, aca = false, onAcapella,
 }) {
   if (!track) {
     return (
@@ -84,6 +88,36 @@ function Deck({
         <span className="text-slate-500">{CAMELOT_TO_KEY[dispKey]}</span>
         <span className="inline-flex items-center gap-1 text-slate-500 ml-2"><Gauge size={13} /> Tempo {track.tempo}</span>
         <span className="inline-flex items-center gap-1 text-slate-500 ml-2"><Activity size={13} /> Energy {track.energy}</span>
+      </div>
+
+      {/* DJ mixer: 3-band kill EQ + Acapella isolation */}
+      <div className="flex items-center gap-2 text-[11px] font-bold">
+        <span className="text-slate-400 uppercase tracking-wide mr-0.5">Kill</span>
+        {EQ_BANDS.map(([band, label]) => (
+          <button
+            key={band}
+            onClick={() => onKill?.(band)}
+            title={`Kill ${label} band`}
+            className={`px-3 py-1.5 rounded-lg border uppercase tracking-wide transition-colors ${
+              eq[band]
+                ? 'border-rose-500 bg-rose-500/10 text-rose-500'
+                : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+        <button
+          onClick={onAcapella}
+          title="Isolate vocals (acapella)"
+          className={`ml-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border transition-colors ${
+            aca
+              ? 'border-brand bg-brand/10 text-brand'
+              : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Mic size={13} /> Acapella
+        </button>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-[12px] font-semibold">
@@ -140,6 +174,10 @@ export default function MixStudio({ tracks }) {
   const [shiftB, setShiftB] = useState(0)
   const [stemsA, setStemsA] = useState(false)
   const [stemsB, setStemsB] = useState(false)
+  const [eqA, setEqA] = useState({ low: false, mid: false, high: false })
+  const [eqB, setEqB] = useState({ low: false, mid: false, high: false })
+  const [acaA, setAcaA] = useState(false)
+  const [acaB, setAcaB] = useState(false)
   const [loopA, setLoopA] = useState(16)
   const [loopB, setLoopB] = useState(16)
   const [ideaIdx, setIdeaIdx] = useState(0)
@@ -152,6 +190,32 @@ export default function MixStudio({ tracks }) {
   const audioB = useRef(null)
   const rafA = useRef(null)
   const rafB = useRef(null)
+  const chainA = useRef(null)
+  const chainB = useRef(null)
+
+  // Lazily build the Web Audio processing chain on first playback (needs a
+  // user gesture so the AudioContext is allowed to start).
+  const ensureChain = (side) => {
+    const ref = side === 'A' ? chainA : chainB
+    const el = side === 'A' ? audioA.current : audioB.current
+    if (!ref.current && el) {
+      ref.current = createDeckChain(el)
+      if (ref.current) {
+        const eq = side === 'A' ? eqA : eqB
+        ref.current.setBand('low', eq.low)
+        ref.current.setBand('mid', eq.mid)
+        ref.current.setBand('high', eq.high)
+        ref.current.setAcapella(side === 'A' ? acaA : acaB)
+      }
+    }
+    ref.current?.resume()
+    return ref.current
+  }
+
+  const toggleKill = (side, band) => {
+    const setEq = side === 'A' ? setEqA : setEqB
+    setEq((prev) => ({ ...prev, [band]: !prev[band] }))
+  }
 
   const realA = !!a?.audioUrl
   const realB = !!b?.audioUrl
@@ -190,8 +254,14 @@ export default function MixStudio({ tracks }) {
   useEffect(() => { if (audioA.current) audioA.current.playbackRate = Math.pow(2, shiftA / 12) }, [shiftA, a])
   useEffect(() => { if (audioB.current) audioB.current.playbackRate = Math.pow(2, shiftB / 12) }, [shiftB, b])
 
-  useEffect(() => { const el = audioA.current; if (realA && el) { playA ? el.play().catch(() => {}) : el.pause() } }, [playA, realA, a])
-  useEffect(() => { const el = audioB.current; if (realB && el) { playB ? el.play().catch(() => {}) : el.pause() } }, [playB, realB, b])
+  useEffect(() => { const el = audioA.current; if (realA && el) { if (playA) { ensureChain('A'); el.play().catch(() => {}) } else el.pause() } }, [playA, realA, a])
+  useEffect(() => { const el = audioB.current; if (realB && el) { if (playB) { ensureChain('B'); el.play().catch(() => {}) } else el.pause() } }, [playB, realB, b])
+
+  // Apply EQ kills / acapella to the live chains whenever they change.
+  useEffect(() => { const c = chainA.current; if (c) { c.setBand('low', eqA.low); c.setBand('mid', eqA.mid); c.setBand('high', eqA.high) } }, [eqA])
+  useEffect(() => { const c = chainB.current; if (c) { c.setBand('low', eqB.low); c.setBand('mid', eqB.mid); c.setBand('high', eqB.high) } }, [eqB])
+  useEffect(() => { chainA.current?.setAcapella(acaA) }, [acaA])
+  useEffect(() => { chainB.current?.setAcapella(acaB) }, [acaB])
 
   useEffect(() => {
     if (!playA || realA) { cancelAnimationFrame(rafA.current); return }
@@ -276,7 +346,8 @@ export default function MixStudio({ tracks }) {
       {/* Decks + center control */}
       <div className="flex items-stretch gap-3">
         <Deck side="A" track={a} tracks={tracks} onPick={setA} playing={playA} onTogglePlay={() => setPlayA((p) => !p)} progress={progA} onSeek={seekA}
-          shift={shiftA} onShift={(d) => setShiftA((v) => v + d)} stems={stemsA} onStems={() => setStemsA((v) => !v)} loop={loopA} onLoop={setLoopA} onExport={() => exportDeck(a)} />
+          shift={shiftA} onShift={(d) => setShiftA((v) => v + d)} stems={stemsA} onStems={() => setStemsA((v) => !v)} loop={loopA} onLoop={setLoopA} onExport={() => exportDeck(a)}
+          eq={eqA} onKill={(band) => toggleKill('A', band)} aca={acaA} onAcapella={() => setAcaA((v) => !v)} />
 
         {/* Center control panel */}
         <div className="w-[210px] shrink-0 rounded-2xl bg-white dark:bg-[#11161f] border border-slate-200 dark:border-slate-800 p-3 flex flex-col items-center gap-3">
@@ -367,7 +438,8 @@ export default function MixStudio({ tracks }) {
             </button>
           </div>
           <Deck side="B" track={b} tracks={tracks} onPick={setB} playing={playB} onTogglePlay={() => setPlayB((p) => !p)} progress={progB} onSeek={seekB}
-            shift={shiftB} onShift={(d) => setShiftB((v) => v + d)} stems={stemsB} onStems={() => setStemsB((v) => !v)} loop={loopB} onLoop={setLoopB} onExport={() => exportDeck(b)} />
+            shift={shiftB} onShift={(d) => setShiftB((v) => v + d)} stems={stemsB} onStems={() => setStemsB((v) => !v)} loop={loopB} onLoop={setLoopB} onExport={() => exportDeck(b)}
+            eq={eqB} onKill={(band) => toggleKill('B', band)} aca={acaB} onAcapella={() => setAcaB((v) => !v)} />
         </div>
       </div>
 

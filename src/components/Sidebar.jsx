@@ -1,9 +1,10 @@
 import React from 'react'
 import {
-  Music2, ListMusic, Sparkles, Clock, Plus, ChevronDown, Disc3,
+  Music2, ListMusic, Sparkles, Clock, Plus, ChevronDown, Disc3, Pencil,
 } from 'lucide-react'
 import CamelotWheel from './CamelotWheel'
-import { PLAYLISTS, MY_MUSIC } from '../data/tracks'
+import PlaylistDialog from './PlaylistDialog'
+import { PLAYLISTS } from '../data/tracks'
 import { REL_META, keyColor } from '../data/camelot'
 
 const ICONS = {
@@ -13,8 +14,24 @@ const ICONS = {
   recent: Clock,
 }
 
-export default function Sidebar({ activeKey, onSelectKey, activePlaylist, onSelectPlaylist, onAddTracks, onDropToPlaylist, suggestions = [], currentTrack, onPlayKey }) {
+export default function Sidebar({ activeKey, onSelectKey, activePlaylist, onSelectPlaylist, onAddTracks, onDropToPlaylist, myMusic = [], onCreatePlaylist, onUpdatePlaylist, onDeletePlaylist, suggestions = [], currentTrack, onPlayKey }) {
   const [dropTarget, setDropTarget] = React.useState(null)
+  const [dialog, setDialog] = React.useState(null) // null | { mode, item }
+
+  const openCreate = () => setDialog({ mode: 'create', item: null })
+  const openEdit = (item) => setDialog({ mode: 'edit', item })
+  const closeDialog = () => setDialog(null)
+
+  const submitDialog = ({ name, emoji }) => {
+    if (dialog?.mode === 'edit') onUpdatePlaylist?.(dialog.item.id, { name, emoji })
+    else onCreatePlaylist?.({ name, emoji })
+    closeDialog()
+  }
+
+  const deleteFromDialog = () => {
+    if (dialog?.item) onDeletePlaylist?.(dialog.item.id)
+    closeDialog()
+  }
 
   const playlistDropProps = (id) => ({
     onDragOver: (e) => {
@@ -132,28 +149,58 @@ export default function Sidebar({ activeKey, onSelectKey, activePlaylist, onSele
         {/* My Music */}
         <div className="flex items-center justify-between mt-5 mb-1">
           <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">My Music</span>
-          <ChevronDown size={14} className="text-slate-400" />
+          <button
+            onClick={openCreate}
+            title="New playlist"
+            className="grid place-items-center w-5 h-5 rounded-md text-slate-400 hover:text-brand hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            <Plus size={14} />
+          </button>
         </div>
         <nav className="space-y-0.5">
-          {MY_MUSIC.map((m) => {
+          {myMusic.map((m) => {
             const active = activePlaylist === m.id
             const isDrop = dropTarget === m.id
             return (
-              <button
+              <div
                 key={m.id}
-                onClick={() => onSelectPlaylist?.(m.id)}
                 {...playlistDropProps(m.id)}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm transition-colors ${
+                className={`group w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm transition-colors cursor-pointer ${
                   active ? 'bg-brand/10 text-brand font-semibold' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                 } ${isDrop ? 'ring-2 ring-brand ring-inset bg-brand/10' : ''}`}
+                onClick={() => onSelectPlaylist?.(m.id)}
               >
                 <span className="text-[13px] w-4 text-center">{m.emoji}</span>
                 <span className="flex-1 text-left truncate">{m.name}</span>
-              </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); openEdit(m) }}
+                  title="Edit playlist"
+                  className="opacity-0 group-hover:opacity-100 grid place-items-center w-5 h-5 rounded-md text-slate-400 hover:text-brand hover:bg-white dark:hover:bg-slate-700 transition-opacity"
+                >
+                  <Pencil size={12} />
+                </button>
+              </div>
             )
           })}
+          {myMusic.length === 0 && (
+            <button
+              onClick={openCreate}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <Plus size={14} /> Create your first playlist
+            </button>
+          )}
         </nav>
       </div>
+
+      <PlaylistDialog
+        open={!!dialog}
+        mode={dialog?.mode || 'create'}
+        initial={dialog?.item}
+        onClose={closeDialog}
+        onSubmit={submitDialog}
+        onDelete={deleteFromDialog}
+      />
     </aside>
   )
 }

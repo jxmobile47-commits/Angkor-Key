@@ -10,7 +10,7 @@ import TagEditor from './components/TagEditor'
 import SettingsPanel from './components/Settings'
 import MixStudio from './components/MixStudio'
 import ExportMenu from './components/ExportMenu'
-import { TRACKS } from './data/tracks'
+import { TRACKS, MY_MUSIC } from './data/tracks'
 import { compatibleKeys, harmonicMatches } from './data/camelot'
 import { fileToTrack } from './data/audio'
 
@@ -32,7 +32,7 @@ export default function App() {
   const [tab, setTab] = useState('collection')
   const [playlist, setPlaylist] = useState('all')
   const [tracks, setTracks] = useState(TRACKS)
-  const [selected, setSelected] = useState(TRACKS[7])
+  const [selected, setSelected] = useState(TRACKS[0] || null)
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
   const [search, setSearch] = useState('')
@@ -41,6 +41,7 @@ export default function App() {
   const [filterByKey, setFilterByKey] = useState(false)
   const [dark, setDark] = useState(() => localStorage.getItem('ak-theme') === 'dark')
   const [members, setMembers] = useState({}) // { playlistId: number[] }
+  const [myMusic, setMyMusic] = useState(MY_MUSIC)
   const [importing, setImporting] = useState(false)
   const [dropping, setDropping] = useState(false)
   const [snap, setSnap] = useState(true)
@@ -202,7 +203,28 @@ export default function App() {
     })
   }
 
-  const isMyMusic = ['gigs','melodic','tech','warmup','house','latin','chill','tropical'].includes(playlist)
+  const isMyMusic = myMusic.some((m) => m.id === playlist)
+
+  // Create / edit / delete My Music playlists
+  const createPlaylist = ({ name, emoji }) => {
+    const id = `pl-${Date.now().toString(36)}`
+    setMyMusic((prev) => [...prev, { id, name, emoji }])
+    setPlaylist(id)
+  }
+
+  const updatePlaylist = (id, patch) => {
+    setMyMusic((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)))
+  }
+
+  const deletePlaylist = (id) => {
+    setMyMusic((prev) => prev.filter((m) => m.id !== id))
+    setMembers((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+    setPlaylist((p) => (p === id ? 'all' : p))
+  }
 
   const visible = useMemo(() => {
     let list = tracks.filter((t) => {
@@ -265,6 +287,10 @@ export default function App() {
         onSelectPlaylist={setPlaylist}
         onAddTracks={() => fileRef.current?.click()}
         onDropToPlaylist={addToPlaylist}
+        myMusic={myMusic}
+        onCreatePlaylist={createPlaylist}
+        onUpdatePlaylist={updatePlaylist}
+        onDeletePlaylist={deletePlaylist}
         suggestions={suggestions}
         currentTrack={selected}
         onPlayKey={playKey}
